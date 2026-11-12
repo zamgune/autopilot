@@ -1,9 +1,9 @@
 {
   "name": "com.ramenvr.autopilot",
-  "version": "1.0.1",
+  "version": "1.0.2-cli",
   "displayName": "Autopilot",
   "description": "Autopilot: AI playtesting for Unity games. Verify claims, play goals and explore for bugs. Connects out over a WebSocket to an agent service (by default one on this machine, which the editor window installs once and starts by itself), which plays the game through this package.",
-  "unity": "6000.0",
+  "unity": "2022.3",
   "license": "Apache-2.0",
   "author": {
     "name": "Autopilot"

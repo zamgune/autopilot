@@ -16,7 +16,7 @@ Autopilot from a clone, what the tests cover, and how changes are reviewed and r
 
 - Python 3.12+, pip, and [uv](https://docs.astral.sh/uv/)
 - [Bun](https://bun.sh)
-- A project in Unreal 5 (5.4-5.8), Unity 6, Godot 4 (4.7 or later), or a place in Roblox Studio
+- A project in Unreal 5 (5.4-5.8), Unity 2022.3 LTS or Unity 6, Godot 4 (4.7 or later), or a place in Roblox Studio
 
 ## Development setup
 
@@ -43,7 +43,7 @@ The Python tests use a simulated game (`tests/conftest.py`, `tests/navsim.py`), 
    | Engine   | Plugin                                                                             | Install                                                               |
    | -------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
    | Unreal 5 | [plugin/unreal/Autopilot](plugin/unreal/Autopilot/README.md)                       | copy the folder into your project's `Plugins/` and reopen the project |
-   | Unity 6  | [plugin/unity/com.ramenvr.autopilot](plugin/unity/com.ramenvr.autopilot/README.md) | Package Manager > _Add package from disk_ > its `package.json`        |
+   | Unity    | [plugin/unity/com.ramenvr.autopilot](plugin/unity/com.ramenvr.autopilot/README.md) | Package Manager > _Add package from disk_ > its `package.json`        |
    | Godot 4  | [plugin/godot](plugin/godot/README.md)                                             | copy `addons/autopilot` into your project and enable it               |
    | Roblox   | [plugin/roblox](plugin/roblox/README.md)                                           | `python tools/build_roblox.py --install`, then reopen the place       |
 

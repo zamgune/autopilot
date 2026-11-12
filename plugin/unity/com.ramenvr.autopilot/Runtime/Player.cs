@@ -141,13 +141,24 @@ namespace Autopilot.Playtest
         static GameObject lastPosOf;
         static Vector3 trackedVelocity;
 
+#if AUTOPILOT_PHYSICS
+        internal static Vector3 LinearVelocity(Rigidbody body)
+        {
+#if UNITY_6000_0_OR_NEWER
+            return body.linearVelocity;
+#else
+            return body.velocity;
+#endif
+        }
+#endif
+
         public static Vector3 Velocity(GameObject player)
         {
 #if AUTOPILOT_PHYSICS
             var cc = player.GetComponent<CharacterController>();
             if (cc != null && cc.enabled) return cc.velocity;
             var rb = player.GetComponent<Rigidbody>();
-            if (rb != null) return rb.linearVelocity;
+            if (rb != null) return LinearVelocity(rb);
 #endif
             // From where it was at an earlier frame
             var now = Time.timeAsDouble;

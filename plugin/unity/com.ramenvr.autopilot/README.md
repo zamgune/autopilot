@@ -1,7 +1,7 @@
 # Autopilot for Unity (com.ramenvr.autopilot)
 
-Autopilot is AI playtesting for Unity 6 games. You describe what to test in one box, and an AI agent plays your game to
-check it; the agent service reads which of four types of prompt your words are:
+Autopilot is AI playtesting for Unity 2022.3 LTS and Unity 6 games. You describe what to test in one box, and an AI
+agent plays your game to check it; the agent service reads which of four types of prompt your words are:
 
 - **Exploration**, e.g. "Explore the crafting system in Lvl_Main.": it plays and reports the bugs it finds (EXPLORED).
 - **Testing**, e.g. "Go through the currently open level and tell me everything that looks wrong.": a test in your own
@@ -23,7 +23,7 @@ call the game's code. The brain does the thinking; this package only looks and a
 
 ## Requirements
 
-- Unity 6 (6000.0 or later).
+- Unity 2022.3 LTS or Unity 6.
 - The agent service (the brain, `autopilot serve`) on your machine. The window starts it by itself when you connect (see
   [The agent service](#the-agent-service)): a release download carries its installer in the package's `AgentService~/`
   folder, and the first-run setup installs it once per computer. From a repository checkout, set **Agent service
@@ -33,17 +33,36 @@ call the game's code. The brain does the thinking; this package only looks and a
 
 ## Install
 
-From a release download ([tryaura.dev/autopilot](https://www.tryaura.dev/autopilot/)): unzip it, keeping
-`com.ramenvr.autopilot-<version>.tgz` where it is (your project refers to it). Open your project, and in **Window >
-Package Management > Package Manager** (Unity 6.0: **Window > Package Manager**) choose **+ > Install package from
-tarball...** and pick that file. Then open **Window > Autopilot** and follow the [First-run setup](#first-run-setup).
+### Install the bundled service and Unity package
 
-From a copy of this repository: in the Package Manager choose **+ > Install package from disk...** and pick
-`plugin/unity/com.ramenvr.autopilot/package.json`. Or add it to your project's `Packages/manifest.json` by hand:
+The Unity package includes the matching Python service and its installer. [Download com.ramenvr.autopilot-1.0.2-cli.tgz](https://github.com/zamgune/autopilot/releases/download/v1.0.2-cli/com.ramenvr.autopilot-1.0.2-cli.tgz)
 
-```json
-"com.ramenvr.autopilot": "file:C:/path/to/autopilot/plugin/unity/com.ramenvr.autopilot"
+Keep the `.tgz` in a stable location because your project references this file. Open **Window > Package Manager** (under **Window > Package Management** in
+some Unity 6 releases). Choose **+ > Add package from tarball...** in 2022.3, or **+ > Install package from tarball...**
+in Unity 6. Select the `.tgz`, then open **Window > Autopilot** and follow the [first-run setup](#first-run-setup).
+
+To build the same distribution from a clean checkout of this fork with Python 3.12+ and `uv` installed, run the command
+below at the repository root. `dist/Autopilot-Unity.zip` contains the `.tgz`.
+
+```sh
+python tools/package_release.py dist --no-unreal --unversioned
 ```
+
+### Install from Git or a checkout
+
+In Package Manager, use **+** and the Git URL option. Enter
+`https://github.com/zamgune/autopilot.git?path=/plugin/unity/com.ramenvr.autopilot#main`.
+For a local checkout, use the disk option and select `plugin/unity/com.ramenvr.autopilot/package.json`.
+
+A source install needs the service from the same revision. For a Git URL install, copy the package's `hash` from
+`Packages/packages-lock.json`, replace `COMMIT` below with that value, and keep the command running while testing.
+
+```sh
+uvx --python 3.12 --from "autopilot[claude,codex] @ https://github.com/zamgune/autopilot/archive/COMMIT.zip" autopilot serve
+```
+
+For a local checkout, run `uv run --python 3.12 --extra claude --extra codex autopilot serve` at its root instead.
+Open **Window > Autopilot** and connect to the local service.
 
 ## Use it in the editor
 
@@ -166,9 +185,8 @@ kept in EditorPrefs for the project, so an editor that crashed or closed mid-run
 as does removing the package), as Godot's plugin tells its debugger to continue. The run reports the error itself (the
 `log_error` detector).
 
-The main toolbar has an Autopilot button (its logo; it opens the window): Unity 6.3 and later through the toolbar's
-own API; 6000.0 to 6000.2 by putting it into the toolbar's UI Toolkit tree (found through reflection: a toolbar that
-isn't as expected gets no button, never an error).
+The main toolbar has an Autopilot button that opens the window. Unity 6.3 and later use the main toolbar API. On
+earlier editor versions the package looks for the toolbar's UI Toolkit tree. **Window > Autopilot** also opens the window.
 
 When a bundled font can't be read the window says so on its status line as it opens (*A bundled font couldn’t be read:
 using the editor’s font*), as Unreal's tab and Godot's dock do.
@@ -573,7 +591,7 @@ unless it sets its own frame rate.
 | `Runtime/Codex.cs` | serving the project's files and the export (`codex_manifest`, `codex_read`) |
 | `Runtime/Frame.cs` | conversion to the kit frame (centimetres, Z up) |
 | `Runtime/Json.cs` | a small JSON reader and writer |
-| `Runtime/Loaded.cs` | the loaded objects of a type, on every Unity 6 (`FindObjectsByType`'s overloads changed in 6000.4) |
+| `Runtime/Loaded.cs` | the loaded objects of a type across supported editor versions (`FindObjectsByType`'s overloads changed in 6000.4) |
 | `Editor/EditorHost.cs` | the client in the editor: play mode as the session, surviving script reloads |
 | `Editor/HostLink.cs` | another editor plugin (Aura's) carrying the connection to the brain in place of the WebSocket |
 | `Editor/Headless.cs` | the editor in batch mode (`-executeMethod Autopilot.Playtest.Editor.Headless.Run`) |

@@ -665,6 +665,7 @@ namespace Autopilot.Playtest.Editor
                 if (asset == null) continue;
                 var sb = new StringBuilder();
                 var projectWide = false;
+#if AUTOPILOT_PROJECT_WIDE_ACTIONS
                 try
                 {
                     projectWide = UnityEngine.InputSystem.InputSystem.actions != null && AssetDatabase.GetAssetPath(UnityEngine.InputSystem.InputSystem.actions) == path;
@@ -673,6 +674,7 @@ namespace Autopilot.Playtest.Editor
                 {
                     // (none)
                 }
+#endif
                 sb.AppendLine($"# Input actions {path}{(projectWide ? " (the project-wide actions)" : "")}");
                 foreach (var scheme in asset.controlSchemes)
                     sb.AppendLine($"control scheme {scheme.name}: {string.Join(", ", scheme.deviceRequirements.Select(d => d.controlPath + (d.isOptional ? " (optional)" : "")))}");

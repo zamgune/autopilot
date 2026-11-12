@@ -484,7 +484,7 @@ namespace Autopilot.Playtest
                 var cc = go.GetComponent<CharacterController>();
                 var rb = go.GetComponent<Rigidbody>();
                 if (cc != null && cc.enabled) velocity = cc.velocity;
-                else if (rb != null) velocity = rb.linearVelocity;
+                else if (rb != null) velocity = Player.LinearVelocity(rb);
 #endif
                 var box = BoundsOf(go);
                 result[path] = new Dictionary<string, object>

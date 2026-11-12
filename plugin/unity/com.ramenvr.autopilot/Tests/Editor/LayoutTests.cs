@@ -266,7 +266,7 @@ namespace Autopilot.Playtest.Tests
             foreach (var key in host.Query<TextField>(className: "key-input").ToList())
             {
                 if (!Shown(key, host)) continue;
-                var placeholder = key.textEdition.placeholder;
+                var placeholder = Placeholder(key);
                 var room = PlaceholderRoom(key);
                 var need = PlaceholderNeeds(key);
                 if (string.IsNullOrEmpty(placeholder) || float.IsNaN(room)) continue;
@@ -277,7 +277,7 @@ namespace Autopilot.Playtest.Tests
             foreach (var box in host.Query<TextField>(className: "prompt-input").ToList())
             {
                 if (!Shown(box, host)) continue;
-                var placeholder = box.textEdition.placeholder;
+                var placeholder = Placeholder(box);
                 var input = box.Q(className: "unity-base-text-field__input");
                 var text = box.Q<TextElement>();
                 if (string.IsNullOrEmpty(placeholder) || input == null || text == null) continue;
@@ -308,6 +308,46 @@ namespace Autopilot.Playtest.Tests
             return problems.Select(p => $"{what} at {size.x}x{size.y}: {p}").ToList();
         }
 
+        static string Placeholder(TextField f)
+        {
+#if UNITY_6000_0_OR_NEWER
+            return f.textEdition.placeholder;
+#else
+            return f.Q<TextElement>("autopilot-placeholder")?.text;
+#endif
+        }
+
+#if !UNITY_6000_0_OR_NEWER
+        [Test]
+        public void EmptyPasswordHintFollowsFocusAndSilentProviderChanges()
+        {
+            var edits = new List<string>();
+            var field = AutopilotUI.Field("", false, edits.Add, "Optional");
+            field.isPasswordField = true;
+            var other = new Button();
+            host.Add(field);
+            host.Add(other);
+            Layout();
+            var hint = field.Q<TextElement>("autopilot-placeholder");
+            Assert.AreEqual("Optional", hint.text);
+            Assert.AreEqual(PickingMode.Ignore, hint.pickingMode);
+            Assert.AreEqual(DisplayStyle.Flex, hint.style.display.value);
+
+            field.Focus();
+            Assert.AreEqual(DisplayStyle.None, hint.style.display.value);
+            Assert.AreEqual("", field.value);
+            field.value = "test key";
+            other.Focus();
+            Assert.AreEqual(DisplayStyle.None, hint.style.display.value);
+            Assert.AreEqual("test key", field.value);
+
+            field.SetValueWithoutNotify("");
+            Assert.AreEqual(DisplayStyle.Flex, hint.style.display.value);
+            Assert.AreEqual("", field.value);
+            CollectionAssert.AreEqual(new[] { "test key" }, edits);
+        }
+#endif
+
         /// <summary>The width a text field's text has: its input box's, inside its padding and border.</summary>
         static float PlaceholderRoom(TextField f)
         {
@@ -319,7 +359,7 @@ namespace Autopilot.Playtest.Tests
         static float PlaceholderNeeds(TextField f)
         {
             var text = f.Q<TextElement>();
-            return text == null ? 0 : text.MeasureTextSize(f.textEdition.placeholder ?? "", 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x;
+            return text == null ? 0 : text.MeasureTextSize(Placeholder(f) ?? "", 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x;
         }
 
         /// <summary>The words shown (labels, the fields' placeholders), as one text.</summary>
@@ -330,7 +370,7 @@ namespace Autopilot.Playtest.Tests
             {
                 if (!Shown(e, host)) continue;
                 if (e is TextElement t && !string.IsNullOrEmpty(t.text)) words.Add(t.text);
-                if (e is TextField f && !string.IsNullOrEmpty(f.textEdition.placeholder)) words.Add(f.textEdition.placeholder);
+                if (e is TextField f && !string.IsNullOrEmpty(Placeholder(f))) words.Add(Placeholder(f));
             }
             return string.Join("\n", words).Replace(((char)0x200B).ToString(), "");
         }
@@ -506,8 +546,8 @@ namespace Autopilot.Playtest.Tests
                     TextField decision = keys[0], key = keys[1];
                     Assert.AreSame(key, pick.parent.Q<TextField>(), $"the LLM key beside the dropdown {at}");
                     Assert.IsTrue(decision.isPasswordField && key.isPasswordField);
-                    Assert.AreEqual("Optional", decision.textEdition.placeholder);
-                    Assert.AreEqual("Optional", key.textEdition.placeholder);
+                    Assert.AreEqual("Optional", Placeholder(decision));
+                    Assert.AreEqual("Optional", Placeholder(key));
 
                     Rect d = decision.worldBound, a = agent.worldBound, p = pick.worldBound, k = key.worldBound, row = pick.parent.worldBound;
                     var box = decision.parent;
@@ -531,7 +571,7 @@ namespace Autopilot.Playtest.Tests
                         var room = PlaceholderRoom(f);
                         var need = PlaceholderNeeds(f);
                         Assert.Greater(need, 0f, $"the placeholder measured {at}");
-                        Assert.LessOrEqual(need, room + 0.5f, $"\"{f.textEdition.placeholder}\" fits its input {at}");
+                        Assert.LessOrEqual(need, room + 0.5f, $"\"{Placeholder(f)}\" fits its input {at}");
                     }
                     foreach (var (dropdown, names) in new[] { (agent, agentNames), (pick, providerNames) })
                     {
@@ -561,7 +601,7 @@ namespace Autopilot.Playtest.Tests
             Assert.AreEqual("Anthropic", Provider().value);
             Assert.IsFalse(Provider().enabledInHierarchy, "Claude Code's provider locked");
             Assert.AreEqual(1f, Provider().resolvedStyle.opacity, 0.01f, "a locked provider isn't faded");
-            Assert.AreEqual("Optional", Provider().parent.Q<TextField>().textEdition.placeholder);
+            Assert.AreEqual("Optional", Placeholder(Provider().parent.Q<TextField>()));
             Assert.IsEmpty(Problems("step 1, Claude Code", new Vector2Int(360, 640), out _));
             Agent().value = "Codex";
             Layout();
@@ -1862,10 +1902,11 @@ namespace Autopilot.Playtest.Tests
 
         static void Press(VisualElement button)
         {
+            button.Focus();
+            Assert.AreSame(button, button.panel.focusController.focusedElement, "Enter goes to the focused button");
             using (var e = KeyDownEvent.GetPooled('\n', KeyCode.Return, EventModifiers.None))
             {
-                e.target = button;
-                button.SendEvent(e);
+                button.panel.visualTree.SendEvent(e);
             }
         }
 
@@ -1996,7 +2037,7 @@ namespace Autopilot.Playtest.Tests
             Show(new Vector2Int(360, 640), null, v => v.TestShowComposer(ServiceUrl));
             var box = host.Q<TextField>(className: "prompt-input");
             Assert.IsNotNull(box);
-            Assert.AreEqual(AutopilotView.PromptPlaceholder, box.textEdition.placeholder);
+            Assert.AreEqual(AutopilotView.PromptPlaceholder, Placeholder(box));
             VisualElement RunRow() => host.Q(className: "run-row");
             VisualElement Minutes() => host.Q(className: "minutes-row");
             // (Run sits in the box's last row, the Time limit before it, whatever is typed)
@@ -2521,7 +2562,12 @@ namespace Autopilot.Playtest.Tests
             foreach (var size in new[] { new Vector2Int(1400, 900), new Vector2Int(360, 640) })
             {
                 var view = Show(size, null);
-                VisualElement Reset() => host.Query(className: "savedata-reset").ToList().First(b => Shown(b, host) || !view.Wide);
+                if (!view.Wide)
+                {
+                    host.Q(className: "history-pop").style.display = DisplayStyle.Flex;
+                    Layout();
+                }
+                VisualElement Reset() => host.Query(className: "savedata-reset").ToList().Single(b => Shown(b, host));
                 Press(Reset());
                 Layout();
                 // Asked in place: the question, its line, Reset memory and Cancel (the dropdown opened when narrow)
@@ -2657,7 +2703,7 @@ namespace Autopilot.Playtest.Tests
                     // Rollout, its tooltip saying so before
                     Assert.AreEqual(DisplayStyle.Flex, row.resolvedStyle.display, $"the steer row shown {at}");
                     Assert.IsTrue(field.enabledInHierarchy, $"the box can be typed in {at}");
-                    Assert.AreEqual(AutopilotView.SteerHint, field.textEdition.placeholder, at);
+                    Assert.AreEqual(AutopilotView.SteerHint, Placeholder(field), at);
                     Assert.AreEqual("You can steer once the game is playing", AutopilotView.SteerWaitHint);
                     Assert.AreEqual(rollout ? "" : AutopilotView.SteerWaitHint, button.tooltip, at);
                     // What was typed stays, and the button can't send it before the Rollout

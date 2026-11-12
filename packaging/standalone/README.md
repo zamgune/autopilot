@@ -9,7 +9,7 @@ verify claims about it and reach goals in it.
 |---|---|
 | `{stem}-Unreal<x.y>-Win64.zip` | Unreal Engine x.y (5.4-5.8) on Windows (prebuilt: Blueprint-only projects work too) |
 | `{stem}-Unreal<x.y>-Mac.dmg` | Unreal Engine x.y (5.4-5.8) on macOS, Apple silicon or Intel (prebuilt too) |
-| `{stem}-Unity.zip` | Unity 6 (6000.0 or later) on Windows or macOS |
+| `{stem}-Unity.zip` | Unity 2022.3 LTS or Unity 6 on Windows or macOS |
 | `{stem}-Godot.zip` | Godot 4.7 or later on Windows or macOS |
 | `{stem}-Roblox.zip` | Roblox Studio on Windows or macOS |
 
@@ -30,8 +30,8 @@ verify claims about it and reach goals in it.
 ### Unity
 
 1. Unzip the download, and keep `com.ramenvr.autopilot-<version>.tgz` where it is: your project refers to it.
-2. In Window > Package Management > Package Manager (Unity 6.0: Window > Package Manager), choose
-   + > Install package from tarball..., and pick that file.
+2. Open Window > Package Manager (under Window > Package Management in some Unity 6 releases). Choose
+   + > Add package from tarball... in Unity 2022.3, or + > Install package from tarball... in Unity 6, and select the `.tgz`.
 3. Open Window > Autopilot.
 
 ### Godot
@@ -151,4 +151,4 @@ run shows in the Autopilot tab like any other. `autopilot connect claude --remov
 
 Documentation: https://www.tryaura.dev/documentation/autopilot/
 
-Source: https://github.com/ramenvr/autopilot
+Source: https://github.com/zamgune/autopilot

@@ -111,10 +111,9 @@ namespace Autopilot.Playtest.Editor
                 if (v != null && (v.IndexOf('\n') >= 0 || v.IndexOf('\r') >= 0))
                     steerField.SetValueWithoutNotify(v.Replace("\r", "").Replace('\n', ' ').Trim());
                 UpdateSteer();
-            }, SteerHint);
+            }, SteerHint, ScrollerVisibility.Hidden);
             steerField.AddToClassList("grow");
             steerField.AddToClassList("steer-input");
-            steerField.verticalScrollerVisibility = ScrollerVisibility.Hidden;
             steerField.RegisterCallback<KeyDownEvent>(e =>
             {
                 // Enter sends
@@ -231,7 +230,6 @@ namespace Autopilot.Playtest.Editor
             // (stopping: the box and Steer locked until the run ends)
             steer.Q(className: "steer-box")?.EnableInClassList("locked", stopping);
             if (steerField.enabledSelf == stopping) steerField.SetEnabled(!stopping);
-            if (steerField.textEdition.placeholder != SteerHint) steerField.textEdition.placeholder = SteerHint;
             var tip = now || !show || stopping ? "" : SteerWaitHint;
             if (steerButton.tooltip != tip) steerButton.tooltip = tip;
             steerButton.SetEnabled(now && !string.IsNullOrWhiteSpace(steerField.value));

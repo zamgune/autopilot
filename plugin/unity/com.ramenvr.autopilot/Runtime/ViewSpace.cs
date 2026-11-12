@@ -1339,7 +1339,7 @@ namespace Autopilot.Playtest
                         helper = false;
 #if AUTOPILOT_PHYSICS
                 var rb = l.GetComponentInParent<Rigidbody>();
-                if (rb != null && !rb.isKinematic && rb.linearVelocity.magnitude >= 0.1f) helper = false;
+                if (rb != null && !rb.isKinematic && Player.LinearVelocity(rb).magnitude >= 0.1f) helper = false;
 #endif
                 if (helper) list.Add(new KeyValuePair<Vector3, float>(KitSpace.K(l.transform.position), brightness));
             }

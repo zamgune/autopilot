@@ -23,6 +23,11 @@
             "define": "AUTOPILOT_INPUT_SYSTEM"
         },
         {
+            "name": "com.unity.inputsystem",
+            "expression": "1.8.0-pre.1",
+            "define": "AUTOPILOT_PROJECT_WIDE_ACTIONS"
+        },
+        {
             "name": "com.unity.ugui",
             "expression": "1.0.0",
             "define": "AUTOPILOT_UGUI"

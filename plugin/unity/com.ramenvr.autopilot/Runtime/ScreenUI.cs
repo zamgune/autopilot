@@ -301,7 +301,11 @@ namespace Autopilot.Playtest
                         break;
                     case UIE.TextField f:
                         item["text"] = f.value;
+#if UNITY_6000_0_OR_NEWER
                         item["placeholder"] = f.textEdition.placeholder ?? "";
+#else
+                        item["placeholder"] = "";  // UI Toolkit in 2022.3 has no native TextField placeholder.
+#endif
                         break;
                 }
 #endif

@@ -227,22 +227,73 @@ namespace Autopilot.Playtest.Editor
             return d;
         }
 
-        public static TextField Field(string value, bool multiline, Action<string> changed, string placeholder = null)
+        public static TextField Field(string value, bool multiline, Action<string> changed, string placeholder = null,
+                                      ScrollerVisibility verticalScroller = ScrollerVisibility.Auto)
         {
+#if UNITY_6000_0_OR_NEWER
             var f = new TextField { value = value ?? "", multiline = multiline };
-            if (multiline)
-            {
-                f.AddToClassList("multiline");
-                f.verticalScrollerVisibility = ScrollerVisibility.Auto;
-            }
+            if (multiline) f.verticalScrollerVisibility = verticalScroller;
             if (!string.IsNullOrEmpty(placeholder))
             {
                 f.textEdition.placeholder = placeholder;
                 f.textEdition.hidePlaceholderOnFocus = true;
             }
+#else
+            var f = new HintedTextField { value = value ?? "", multiline = multiline };
+            if (multiline) f.SetVerticalScrollerVisibility(verticalScroller);
+            if (!string.IsNullOrEmpty(placeholder)) f.AddHint(placeholder);
+#endif
+            if (multiline) f.AddToClassList("multiline");
             f.RegisterValueChangedCallback(e => changed?.Invoke(e.newValue));
             return f;
         }
+
+#if !UNITY_6000_0_OR_NEWER
+        // Unity 2022 has no native placeholder. Keep the hint out of the editable value, including on password fields.
+        sealed class HintedTextField : TextField
+        {
+            TextElement hint;
+            bool editing;
+
+            public void AddHint(string text)
+            {
+                var input = this.Q(className: TextField.inputUssClassName);
+                hint = new TextElement { text = text, name = "autopilot-placeholder", pickingMode = PickingMode.Ignore, enableRichText = false };
+                hint.style.position = Position.Absolute;
+                hint.style.color = Muted;
+                input.hierarchy.Add(hint);
+                input.RegisterCallback<GeometryChangedEvent>(_ =>
+                {
+                    var style = input.resolvedStyle;
+                    hint.style.left = style.paddingLeft;
+                    hint.style.right = style.paddingRight;
+                    hint.style.top = style.paddingTop;
+                    hint.style.bottom = style.paddingBottom;
+                });
+                RegisterCallback<FocusInEvent>(_ => SetEditing(true));
+                RegisterCallback<FocusOutEvent>(e => SetEditing(e.relatedTarget is VisualElement next && Contains(next)));
+                RegisterCallback<DetachFromPanelEvent>(_ => SetEditing(false));
+                RefreshHint();
+            }
+
+            void SetEditing(bool focused)
+            {
+                editing = focused;
+                RefreshHint();
+            }
+
+            void RefreshHint()
+            {
+                if (hint != null) hint.style.display = !editing && string.IsNullOrEmpty(value) ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+
+            public override void SetValueWithoutNotify(string newValue)
+            {
+                base.SetValueWithoutNotify(newValue);
+                RefreshHint();
+            }
+        }
+#endif
 
         /// <summary>A whole number in a field (mono, right-aligned): Minutes, Time limit.</summary>
         public static IntegerField NumField(int value, string classes = null)

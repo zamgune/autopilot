@@ -243,7 +243,8 @@ namespace Autopilot.Playtest
 #endif
 #if AUTOPILOT_PHYSICS
                 var rb = s.Thing.GetComponentInParent<Rigidbody>();
-                if (rb != null && !rb.isKinematic && rb.linearVelocity.magnitude > 0.01f) item["speed"] = Math.Round(rb.linearVelocity.magnitude * Frame.Scale);
+                var speed = rb != null && !rb.isKinematic ? Player.LinearVelocity(rb).magnitude : 0f;
+                if (speed > 0.01f) item["speed"] = Math.Round(speed * Frame.Scale);
                 if (player != null)
                 {
                     var blocks = s.Thing.GetComponentsInChildren<Collider>().Any(c => c.enabled && !c.isTrigger);

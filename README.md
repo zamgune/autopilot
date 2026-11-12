@@ -16,7 +16,7 @@ The installation (and uninstallation) instructions in this README are relevant f
 
 ### Step 1: Download
 
-Download the latest Autopilot build for your game engine and OS from [tryaura.dev/autopilot](https://www.tryaura.dev/autopilot/). We currently support Unreal Engine 5, Unity 6, Godot 4, and Roblox Studio on both Windows and macOS.
+For Unity 2022.3 LTS and Unity 6, follow [this fork's Unity installation steps](#step-2b-adding-to-your-project-unity). The upstream downloads for Unreal Engine 5, Godot 4, and Roblox Studio on Windows and macOS are available at [tryaura.dev/autopilot](https://www.tryaura.dev/autopilot/).
 
 For advanced Unreal Engine users on Windows, we also support installing Autopilot from source and building it against your own Unreal Engine source build. Select the **Unreal source build** option in [tryaura.dev/autopilot](https://www.tryaura.dev/autopilot/). If you install Autopilot from source, you can skip to **Step 3: Onboarding**.
 
@@ -35,16 +35,14 @@ Autopilot has builds for Unreal Engine 5.4, 5.5, 5.6, 5.7, and 5.8. If you haven
 
 ### Step 2B: Adding to your project (Unity)
 
-Follow these instructions if your project is on Unity.
+Download the fork's Unity package for 2022.3 LTS or Unity 6. It includes the agent service that runs tests with your signed-in Claude Code or Codex CLI. [Download com.ramenvr.autopilot-1.0.2-cli.tgz](https://github.com/zamgune/autopilot/releases/download/v1.0.2-cli/com.ramenvr.autopilot-1.0.2-cli.tgz)
 
-Autopilot has a build for Unity 6 (v6000.0 or later). If you haven't already, download it from [tryaura.dev/autopilot](https://www.tryaura.dev/autopilot/). You should see an `Autopilot-Unity.zip` in your downloads folder.
+1. Keep the `.tgz` file in a stable location and open your project.
+2. Open **Window > Package Manager**. Some Unity 6 releases place it under **Window > Package Management > Package Manager**.
+3. Click **+** and choose **Add package from tarball...** (Unity 2022.3) or **Install package from tarball...** (Unity 6). Select the `.tgz` file.
+4. Open **Window > Autopilot** and proceed to **Step 3: Onboarding**.
 
-1. Extract the downloaded `Autopilot-Unity.zip`. It contains `com.ramenvr.autopilot-<version>.tgz`.
-2. Open your project in Unity.
-3. Go to **Window > Package Management > Package Manager**.
-4. Click the **+** icon.
-5. Click **Install package from tarball...** and select `com.ramenvr.autopilot-<version>.tgz`.
-6. Proceed to **Step 3: Onboarding**.
+For instructions to build the tarball yourself or install the package from Git, see the [Unity installation guide](plugin/unity/com.ramenvr.autopilot/README.md#install).
 
 ### Step 2C: Adding to your project (Godot)
 
