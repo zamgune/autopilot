@@ -99,7 +99,7 @@ namespace Autopilot.Playtest.Editor
         {
             var again = IconBtn(Glyph.Shape.Retry, RunAgainName, () =>
             {
-                if (run.RunFrame == null || !ReadyToRun()) return;
+                if (run.RunFrame == null) return;
                 // (the run as it was, its own time limit included)
                 var frame = AgainFrame(run.RunFrame);
                 if (frame != null && AutopilotSession.Start(frame, run.Prompt))
@@ -111,7 +111,8 @@ namespace Autopilot.Playtest.Editor
             }, "primary");
             // (not connected, or a run going: greyed but pressable, the status line saying why)
             again.SetEnabled(run.RunFrame != null);
-            again.EnableInClassList("off", client == null || !client.Connected || client.RunActive);
+            var problem = AutopilotSession.StartProblem(client, Json.Str(run.RunFrame, "cli_client"));
+            again.EnableInClassList("off", problem != null);
             row.Add(again);
             row.Add(IconBtn(Glyph.Shape.Clipboard, CopyReportName, () =>
             {
@@ -124,23 +125,6 @@ namespace Autopilot.Playtest.Editor
             });
             folder.SetEnabled(!string.IsNullOrEmpty(run.ReportDir) && Directory.Exists(run.ReportDir));
             row.Add(folder);
-        }
-
-        /// <summary>Whether a run can start now; when it can't, the status line says why (not connected, a run going).</summary>
-        internal static bool ReadyToRun()
-        {
-            var c = EditorHost.Client;
-            if (c == null || !c.Connected)
-            {
-                AutopilotStatus.Say(AutopilotStatus.RunOffline);
-                return false;
-            }
-            if (c.RunActive)
-            {
-                AutopilotStatus.Say(AutopilotStatus.RunBusy);
-                return false;
-            }
-            return true;
         }
 
         static bool HasRecording(AutopilotRun run)

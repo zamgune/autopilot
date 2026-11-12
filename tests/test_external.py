@@ -3,6 +3,8 @@
 that take long answered "still going" and given to `wait`, frames handed over as images, the decision model's key,
 brain.json, and the agent's transcript kept with a shared run (autopilot/transcripts.py)."""
 
+import contextlib
+import inspect
 import io
 import json
 import os
@@ -11,7 +13,8 @@ import time
 import types
 
 import pytest
-from test_autopilot import FakeLink
+from test_aura import Plugin
+from test_autopilot import CrateHarness, FakeJev, FakeLink
 
 from autopilot import bridge, cli, codex, dataset, mcp, sandbox, transcripts, vision
 from autopilot.agents import external
@@ -21,6 +24,90 @@ from autopilot.kit.game import Game
 
 def text_of(result):
     return "".join(c.get("text", "") for c in result["content"] if c.get("type") == "text")
+
+
+@pytest.mark.parametrize("client,recorded", [("claude", "claude-code"), ("codex", "codex")])
+def test_editor_cli_runs_the_harness_with_jev_and_reports(client, recorded, tmp_path, monkeypatch):
+    from autopilot.agents import logged_cli
+    from autopilot.engines.roblox_mcp import McpClient, StdioTransport, ToolError
+
+    monkeypatch.delenv("AUTOPILOT_AURA_URL", raising=False)
+    monkeypatch.setenv("AUTOPILOT_SANDBOX", "off")
+    monkeypatch.setenv("AUTOPILOT_SHARE", "0")
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-jev")
+    monkeypatch.setattr(codex, "MEMORY", str(tmp_path))
+    game = Game(FakeLink())
+    game.look = {"x": 0.1, "y": 0.1}
+    jev = FakeJev("open_crate")
+    monkeypatch.setattr(cli, "prepare", lambda *args: ("fake", game))
+    monkeypatch.setattr(cli.runtime, "jev_client", lambda: jev)
+    monkeypatch.setattr(cli.agents, "select", lambda *args: pytest.fail("the editor selected a signed-in CLI"))
+    launched = []
+
+    @contextlib.contextmanager
+    def play(chosen, prompt, server, cwd):
+        launched.append(chosen)
+        assert prompt.startswith("Autopilot run ") and "Open the crate" in prompt
+        run_dir = "runs/" + prompt.split()[2].rsplit("-", 1)[0]
+        harness = "from autopilot.kit import *\n\n" + inspect.getsource(CrateHarness)
+        transport = StdioTransport([server["command"], *server["args"]], env={**os.environ, **server["env"]}, cwd=cwd)
+        with contextlib.closing(McpClient(transport)) as front:
+            front.start()
+            assert "start_run" not in front.tools and "frames" in front.tools
+            with pytest.raises(ToolError, match="already started"):
+                front.call_tool("start_run", {})
+            write = front.call_tool("write_file", {"path": run_dir + "/harness.py", "content": harness})
+            assert "Wrote" in text_of(write)
+            assert "status=done" in text_of(front.call_tool("run_harness", {"seconds": 15, "restart": False}))
+            report = front.call_tool("report", {"outcome": "achieved", "summary": "The crate opened.",
+                                                "evidence": ["The episode ended with opened=true."]})
+            assert "Reported" in text_of(report)
+            yield types.SimpleNamespace(failure=lambda: pytest.fail("polled the CLI after its report"))
+
+    monkeypatch.setattr(logged_cli, "launch", play)
+    editor = Plugin()
+    pending = [{"type": "start", "run": {"kind": "goal", "goal": "Open the crate", "cli_client": client}}]
+    deadline = time.monotonic() + 45
+
+    def next_message(timeout):
+        if pending:
+            return pending.pop()
+        frames = [f["type"] for f in editor.sent]
+        if "result" in frames and "memory_state" in frames[frames.index("result") + 1:]:
+            raise EOFError("editor test finished")
+        assert time.monotonic() < deadline, editor.sent
+        time.sleep(0.05)
+
+    editor.next_message = next_message
+    with pytest.raises(EOFError, match="editor test finished"):
+        cli.cmd_serve(editor, types.SimpleNamespace(path=None, model=None))
+    report_file, = (tmp_path / "fake" / "runs").glob("*/report.json")
+    report = json.loads(report_file.read_text(encoding="utf-8"))
+    assert launched == [client] and jev.calls >= sessionmod.MIN_JEV_DECISIONS
+    assert report["client"] == recorded and report["outcome"] == "achieved"
+    assert any(frame.get("type") == "result" and frame["result"]["reached"] for frame in editor.sent)
+
+
+def test_invalid_or_unconfigured_editor_cli_never_starts_a_game(monkeypatch):
+    monkeypatch.delenv("AUTOPILOT_AURA_URL", raising=False)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setattr(cli, "prepare", lambda *a: pytest.fail("unexpected game start"))
+    with pytest.raises(ValueError, match="Unknown CLI selection"):
+        cli.run_prompt(Plugin(), "Open the crate", cli_client="unrecognized")
+    with pytest.raises(RuntimeError, match="Jev needs a TypeSafe API key"):
+        cli.run_prompt(Plugin(), "Open the crate", cli_client="codex")
+
+
+def test_cli_exit_without_a_report_releases_game_and_reaches_the_result(tmp_path, monkeypatch):
+    monkeypatch.setattr(codex, "MEMORY", str(tmp_path))
+    monkeypatch.setenv("AUTOPILOT_SANDBOX", "off")
+    game = Game(FakeLink())
+    reason = "Codex CLI exited before reporting a playtest result."
+    child = types.SimpleNamespace(failure=lambda: reason)
+    monkeypatch.setattr(external, "launch_cli", lambda desk: contextlib.nullcontext(child))
+    result = external.implement(game, "fake", "Open the crate", desk=external.Desk(cli_client="codex"))
+    assert result["stopped"] == reason and reason in result["summary"]
+    assert not game.link.paused and not game.link.held
 
 
 def settled(front, result):

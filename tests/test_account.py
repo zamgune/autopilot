@@ -42,7 +42,7 @@ def test_the_account_says_how_runs_go(monkeypatch, own_preferences):
     monkeypatch.setattr(aura, "client_session", lambda *a, **k: (None, None))
     assert account.state() == {"type": "account", "mode": "none", "signed_in": False, "email": None,
                                "keys": {"decision": None, "llm": None}, "coding_agent": "opencode",
-                               "llm_provider": "anthropic", "share_data": True}
+                               "llm_provider": "anthropic", "share_data": True, "supports_cli_launch": True}
     monkeypatch.setenv("TYPESAFE_API_KEY", "ts-123456789a91f")
     s = account.state()
     assert s["mode"] == "own_keys" and s["keys"] == {"decision": "••••a91f", "llm": None}
@@ -139,7 +139,8 @@ def test_signing_out_forgets_the_sign_in_for_every_editor(monkeypatch, own_prefe
     assert link.frames("account")[-1] == {"type": "account", "mode": "aura", "signed_in": False, "email": None,
                                           "bill": None, "out_of_credits": None,
                                           "keys": {"decision": None, "llm": None},
-                                          "coding_agent": "opencode", "llm_provider": "anthropic", "share_data": True}
+                                          "coding_agent": "opencode", "llm_provider": "anthropic", "share_data": True,
+                                          "supports_cli_launch": True}
 
 
 def test_the_period_s_bill_is_asked_of_aura_in_the_background_and_told_again(monkeypatch, own_preferences,

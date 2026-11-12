@@ -88,6 +88,12 @@ The Autopilot onboarding flow installs the agent service and sets up the models 
 
 ## With Coding Agents
 
+In this fork, you can start a test directly from **Window > Autopilot** in Unity. Install the fork's Unity package and
+its bundled agent service. Sign in to Claude Code or Codex in your terminal, then open **New run**, choose **Claude
+Code CLI** or **Codex CLI** under **Run with**, enter the test and press **Run**. Unity remembers your choice for the
+project. The CLI writes the test and reports the result. Jev still chooses actions during play using your Aura account
+or TypeSafe API key. The editor sets up the CLI connection for each run automatically.
+
 You can use Autopilot through Claude Code and/or Codex via our MCP server.
 
 1. Complete all [installation steps](#installation). Signing in with your Aura account allows this to work out of the box; Aura will only count your decision model usage, which means that your LLM usage is counted against your own Claude and/or ChatGPT subscription and not against Aura. If you want to BYOK, you need to provide a [TypeSafe API key](https://console.typesafe.ai/keys).

@@ -35,6 +35,43 @@ namespace Autopilot.Playtest.Tests
         }
 
         [Test]
+        public void CliRunsRequireThisConnectionsServiceSupport()
+        {
+            var previous = EditorHost.Client;
+            var sent = new List<string>();
+            var client = new PlaytestClient(EditorHost.Instance) { TestWire = sent.Add };
+            var frame = AutopilotView.ExploreFrame(4, "Open the gate", "claude");
+            const string welcome = "{\"type\":\"welcome\",\"features\":[\"account\"]}";
+            try
+            {
+                EditorHost.TestClient(client);
+                client.TestConnected(true);
+                client.TestReceive(welcome);
+                Assert.AreEqual(AutopilotStatus.CliChecking, AutopilotSession.StartProblem(client, "claude"));
+                Assert.IsFalse(AutopilotSession.Start(frame, "Explore"));
+                client.TestReceive("{\"type\":\"account\",\"supports_cli_launch\":true}");
+                Assert.IsNull(AutopilotSession.StartProblem(client, "claude"));
+                client.TestConnected(false);
+                Assert.AreEqual(AutopilotStatus.RunOffline, AutopilotSession.StartProblem(client, "claude"));
+                client.TestConnected(true);
+                client.TestReceive(welcome);
+                Assert.IsFalse(AutopilotSession.Start(frame, "Explore"));
+                client.TestReceive("{\"type\":\"account\"}");
+                Assert.AreEqual(AutopilotStatus.CliUpdate, AutopilotSession.StartProblem(client, "claude"));
+                Assert.IsFalse(AutopilotSession.Start(frame, "Explore"));
+                Assert.IsNull(AutopilotSession.StartProblem(client, ""));
+                Assert.IsFalse(sent.Select(Json.ParseObject).Any(m => Json.Str(m, "type") == "start"));
+                Assert.AreEqual("claude", Json.Str(frame, "cli_client"));
+                Assert.IsFalse(AutopilotView.ExploreFrame(4, "").ContainsKey("cli_client"));
+            }
+            finally
+            {
+                client.TestWire = null;
+                EditorHost.TestClient(previous);
+            }
+        }
+
+        [Test]
         public void RunAgainKeepsTheRunsOwnTimeLimit()
         {
             // The run as it was (a copy), not the composer's Time limit now; an exploration plays for its minutes

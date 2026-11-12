@@ -26,6 +26,8 @@ WAIT_SECONDS = float(os.environ.get("AUTOPILOT_MCP_WAIT") or 40)  # (under Codex
 INSTRUCTIONS = ("Autopilot playtests the game open in the user's game editor (Unreal, Unity, Godot or Roblox Studio): "
                 "call start_run with the user's request (explore it, test it, verify a claim, reach a goal), then "
                 "follow the INSTRUCTIONS.md it names. A long call answers \"still going\": call wait for its result.")
+ATTACHED_INSTRUCTIONS = ("The editor already started this run. Follow the briefing and INSTRUCTIONS.md from your "
+                         "initial prompt. Use wait for a pending game call and report the outcome in this run.")
 
 NOT_RUNNING = ("Autopilot's agent service isn't running: open the game's project in Unreal, Unity, Godot or Roblox "
                "Studio with the Autopilot plugin, and let the Autopilot tab connect (Roblox Studio's plugin can't "
@@ -62,13 +64,13 @@ FILE_TOOLS = {"read_file", "list_files", "search", "write_file", "edit_file"}  #
 # held up by a call still going)
 
 
-def tools():
+def tools(attached=False):
     """The tools as MCP lists them."""
     from .agents.external import FRAMES_SPEC
     from .agents.files import FILE_TOOL_SPECS
     from .agents.session import TOOL_SPECS
 
-    specs = [START_SPEC, WAIT_SPEC]
+    specs = [WAIT_SPEC] if attached else [START_SPEC, WAIT_SPEC]
     for name, description, schema in TOOL_SPECS:
         specs.append((name, DESCRIBE_HERE + description if name == "describe_frames" else description, schema))
     specs += [FRAMES_SPEC, *FILE_TOOL_SPECS]
@@ -131,14 +133,15 @@ def plain(answer):
 
 
 class Server:
-    def __init__(self, out=None, find=control_urls):
+    def __init__(self, out=None, find=control_urls, connection=None):
         self.out = out or sys.stdout
         self.find = find
         self.send_lock = threading.Lock()
         self.lock = threading.Lock()
         self.client = None
-        self.control = None  # the address the run going was started at
-        self.run = None  # its marker
+        self.attached = connection is not None  # an editor-launched CLI and its helpers serve exactly one run
+        self.control = connection["control"] if self.attached else None
+        self.run = connection["run"] if self.attached else None
         self.pending = None  # (thread, box, tool, started) of a call still going
 
     def send(self, message):
@@ -177,6 +180,8 @@ class Server:
     def forward(self, name, args):
         """The call, made on the agent service (blocking)."""
         if name == "start_run":
+            if self.attached:
+                return text("The editor has already started this run. Use its briefing to continue.", error=True)
             url, answer = self.first_taker("start", {**(args or {}), "client": self.client}, "connected")
             if url is not None and not answer.get("isError"):
                 self.control = url
@@ -226,9 +231,10 @@ class Server:
             self.send({"jsonrpc": "2.0", "id": mid, "result": {
                 "protocolVersion": params.get("protocolVersion") or PROTOCOL,
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "autopilot", "version": _version()}, "instructions": INSTRUCTIONS}})
+                "serverInfo": {"name": "autopilot", "version": _version()},
+                "instructions": ATTACHED_INSTRUCTIONS if self.attached else INSTRUCTIONS}})
         elif method == "tools/list":
-            self.send({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools()}})
+            self.send({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools(attached=self.attached)}})
         elif method == "tools/call":
             params = msg.get("params") or {}
 
@@ -264,9 +270,13 @@ def _version():
     return __version__
 
 
-def main():
+def main(attach=None):
     sys.stdin.reconfigure(encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8")
     out, sys.stdout = sys.stdout, sys.stderr  # (whatever else prints goes to stderr: stdout is the protocol's)
-    Server(out=out).serve(sys.stdin)  # (ends when the client closes stdin)
+    connection = None
+    if attach:
+        with open(attach, encoding="utf-8") as f:
+            connection = json.load(f)
+    Server(out=out, connection=connection).serve(sys.stdin)  # ends when the client closes stdin
     return 0

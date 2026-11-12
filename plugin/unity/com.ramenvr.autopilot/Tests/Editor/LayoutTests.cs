@@ -52,7 +52,7 @@ namespace Autopilot.Playtest.Tests
         PlaytestClient client;
         readonly List<string> sent = new List<string>();
         bool useWithAuraWas;
-        string promptWas;
+        string promptWas, cliClientWas;
         int minutesWas;
         int timeLimitWas;
 
@@ -72,6 +72,8 @@ namespace Autopilot.Playtest.Tests
             useWithAuraWas = PlaytestSettings.Get().UseWithAura;
             PlaytestSettings.Get().UseWithAura = false;
             promptWas = PlaytestSettings.Get().Prompt;
+            cliClientWas = PlaytestSettings.Get().CliClient;
+            PlaytestSettings.Get().CliClient = "";
             minutesWas = PlaytestSettings.Get().ExploreMinutes;
             timeLimitWas = PlaytestSettings.Get().TimeLimitMinutes;
 
@@ -112,9 +114,10 @@ namespace Autopilot.Playtest.Tests
             PlaytestSettings.Get().UseWithAura = useWithAuraWas;
             Uninstall.RealRunsBlocked = false;
             var settings = PlaytestSettings.Get();
-            if (settings.Prompt != promptWas || settings.ExploreMinutes != minutesWas || settings.TimeLimitMinutes != timeLimitWas)
+            if (settings.Prompt != promptWas || settings.ExploreMinutes != minutesWas || settings.TimeLimitMinutes != timeLimitWas || settings.CliClient != cliClientWas)
             {
                 settings.Prompt = promptWas;
+                settings.CliClient = cliClientWas;
                 settings.ExploreMinutes = minutesWas;
                 settings.TimeLimitMinutes = timeLimitWas;
                 settings.Save();
@@ -488,9 +491,9 @@ namespace Autopilot.Playtest.Tests
                 {
                     var at = $"at {size.x}x{size.y}{(auraApp ? ", the Aura app found" : "")}";
                     Show(size, v => Setup(v, 1));
-                    var picks = host.Query<DropdownField>().ToList();
-                    Assert.AreEqual(2, picks.Count, $"two dropdowns {at}");
-                    DropdownField agent = picks[0], pick = picks[1];
+                    Assert.AreEqual("Configured agent", host.Q<DropdownField>(className: "run-client").value);
+                    var agent = host.Q<DropdownField>(className: "coding-agent");
+                    var pick = host.Q<DropdownField>(className: "llm-provider");
                     Assert.AreEqual("Coding Agent", agent.tooltip);
                     Assert.AreEqual("LLM provider", pick.tooltip);
                     CollectionAssert.AreEqual(agentNames, agent.choices);
@@ -550,8 +553,8 @@ namespace Autopilot.Playtest.Tests
             // Each Coding Agent: Claude Code and Codex show their one provider, locked (and fitting, not faded);
             // OpenCode its six, on the one last picked for it
             var view = Show(new Vector2Int(360, 640), v => Setup(v, 1));
-            DropdownField Agent() => host.Query<DropdownField>().ToList()[0];
-            DropdownField Provider() => host.Query<DropdownField>().ToList()[1];
+            DropdownField Agent() => host.Q<DropdownField>(className: "coding-agent");
+            DropdownField Provider() => host.Q<DropdownField>(className: "llm-provider");
             Agent().value = "Claude Code";
             Layout();
             CollectionAssert.AreEqual(new[] { "Anthropic" }, Provider().choices);
@@ -1680,6 +1683,61 @@ namespace Autopilot.Playtest.Tests
         }
 
         // -- runs are always real time; Reset memory --------------------------------------------------------------
+
+        [TestCase("Claude Code CLI", "claude")]
+        [TestCase("Codex CLI", "codex")]
+        public void SignedInCliRunsFromTheComposer(string label, string id)
+        {
+            var c = Client();
+            var view = Show(new Vector2Int(360, 640), null, v => v.TestShowComposer(ServiceUrl));
+            var picker = host.Q<DropdownField>(className: "run-client");
+            CollectionAssert.AreEqual(new[] { "Configured agent", "Claude Code CLI", "Codex CLI" }, picker.choices);
+            picker.value = label;
+            host.Q<TextField>(className: "prompt-input").value = "Verify that the gate opens";
+            c.TestReceive("{\"type\":\"account\",\"mode\":\"own_keys\"}");
+            view.TestTickComposer();
+            var button = host.Q(className: "run-button");
+            Assert.IsFalse(button.enabledSelf);
+            Assert.AreEqual(AutopilotStatus.CliUpdate, host.Q<Label>(className: "busy-line").text);
+            Assert.AreEqual(id, PlaytestSettings.Load(PlaytestSettings.FilePath).CliClient);
+            c.TestReceive("{\"type\":\"account\",\"supports_cli_launch\":true}");
+            view.TestTickComposer();
+            Assert.IsTrue(button.enabledSelf);
+            sent.Clear();
+            Press(button);
+            var started = AutopilotSession.Current;
+            try
+            {
+                var start = sent.Select(Json.ParseObject).Single(m => Json.Str(m, "type") == "start");
+                var frame = Json.Obj(start, "run");
+                Assert.AreEqual(id, Json.Str(frame, "cli_client"));
+                Assert.AreEqual("Verify that the gate opens", Json.Str(frame, "prompt"));
+                Assert.AreEqual(id, Json.Str(AutopilotView.AgainFrame(started.RunFrame), "cli_client"));
+            }
+            finally
+            {
+                if (started != null) AutopilotSession.Runs.Remove(started);
+            }
+        }
+
+        [Test]
+        public void CliKeySetupKeepsOnlyTheDecisionKey()
+        {
+            Client();
+            var view = Show(new Vector2Int(360, 640), v => Setup(v, 1));
+            var env = Path.Combine(folder, AutopilotEnv.FileName);
+            const string before = "AUTOPILOT_AGENT=opencode\nANTHROPIC_API_KEY=existing-test-key\n";
+            File.WriteAllText(env, before);
+            host.Q<DropdownField>(className: "run-client").value = "Codex CLI";
+            Layout();
+            Assert.IsNull(host.Q<DropdownField>(className: "coding-agent"));
+            Assert.IsNull(host.Q<DropdownField>(className: "llm-provider"));
+            host.Query<TextField>(className: "key-input").ToList().Single().value = "jev-test";
+            AgentService.TestState(AgentService.Phase.Running, ServiceUrl);
+            UseMyKeys.Invoke(view, null);
+            Assert.AreEqual(2, view.SetupStep);
+            Assert.AreEqual(before + "TYPESAFE_API_KEY=jev-test\n", File.ReadAllText(env));
+        }
 
         [Test]
         public void RunsAreAlwaysRealTime()

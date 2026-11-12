@@ -604,7 +604,7 @@ def load_user_keys():
 
 def run_prompt(link, prompt, path=None, model=None, timeout=None, stop=None, sent=None, steering=None, kind=None,
                play_minutes=None, trace=None, desk=None, level=None, aura_model=None, disable_premium_models=False,
-               feed=None, explore_minutes=None, design_brief=None, thinking_level=None):
+               feed=None, explore_minutes=None, design_brief=None, thinking_level=None, cli_client=None):
     """Research, write and run a harness for prompt; send the plugin the result and return the exit code.
 
     path: the project on this machine (--project); model: the language model; timeout: the agent's budget in
@@ -617,7 +617,8 @@ def run_prompt(link, prompt, path=None, model=None, timeout=None, stop=None, sen
     play_minutes: an exploration's minutes of play (its episodes end once they are up, counted from the first one);
     trace: where in Aura the run was asked for (the start frame's run "trace"), for a run through Aura; desk: the
     user's own agent works on the run, through `autopilot mcp` (an agents.external.Desk; its agent, whatever
-    AUTOPILOT_AGENT or Aura says); level: the level to play (the start frame's `level`: a path or a name; by default
+    AUTOPILOT_AGENT or Aura says); cli_client: the signed-in CLI the editor asks this service to launch for this run;
+    level: the level to play (the start frame's `level`: a path or a name; by default
     the one open in the editor, and the agent moves to the one the request means: autopilot/levels.py); aura_model:
     the model picked in Aura's chat (the start frame's run `model`), for a run through Aura: Aura answers with the
     agent and model that play it (autopilot/aura.py), and the model that describes frames (else Aura's Claude);
@@ -644,6 +645,16 @@ def run_prompt(link, prompt, path=None, model=None, timeout=None, stop=None, sen
                 pass
     load_user_keys()  # (before the budget: autopilot.env may set AUTOPILOT_TIMEOUT; before Jev: its key)
     account.follow_preferences()  # (the first-run setup may have changed how runs go since the last)
+    if cli_client is not None:
+        from .agents.external import Desk
+
+        if cli_client not in ("claude", "codex"):
+            raise ValueError("Unknown CLI selection. Choose Claude Code CLI or Codex CLI in Autopilot.")
+        missing = decision_key_missing(in_editor=True)
+        if missing:
+            raise RuntimeError(missing)
+        desk = Desk(cli_client=cli_client)
+        model = None  # the signed-in CLI uses its own model setting
     tested = False
     if not kind and not aura.enabled():  # (through Aura, Jev is reached once the run has started: below)
         kind, tested = told_kind(link, prompt)
@@ -987,11 +998,13 @@ def launch_headless(args, url, say=print):
     return True
 
 
-def decision_key_missing():
+def decision_key_missing(in_editor=False):
     """Why a run with the user's own keys can't start (its decision model has no key; a run through Aura needs none),
     or None. Told to the user's own agent (`autopilot mcp`): the key goes in the file, never into its conversation."""
     if aura.enabled() or (os.environ.get("TYPESAFE_API_KEY") or "").strip():
         return None
+    if in_editor:
+        return "Jev needs a TypeSafe API key or an Aura sign-in. Set one up in the Autopilot window and run again."
     return ("Autopilot needs a key for its decision model, the one that plays the game (TypeSafe: "
             f"https://typesafe.ai). Add the line TYPESAFE_API_KEY=<the key> to {account._user_env_path()}, or enter it "
             "in the Autopilot tab's account setup in the editor (or choose Aura there). Don't paste the key into this "
@@ -1051,7 +1064,7 @@ def cmd_serve(link, args):
                            play_minutes=play_minutes(run), trace=run.get("trace"), desk=desk, level=run.get("level"),
                            aura_model=run.get("model"),
                            disable_premium_models=run.get("disable_premium_models") is True,
-                           thinking_level=run.get("thinking_level"),
+                           thinking_level=run.get("thinking_level"), cli_client=run.get("cli_client"),
                            feed=feed, explore_minutes=explore_minutes(run),
                            design_brief=str(run.get("design_brief") or "").strip() or None)
         except Exception as e:
@@ -1224,8 +1237,9 @@ def parser():
     u.add_argument("--yes", action="store_true", help="remove without asking")
     u.add_argument("--log", help=argparse.SUPPRESS)  # (where a plugin keeps this one's output: the command's removal
     # on Windows, after this has ended, says there how it went)
-    sub.add_parser("mcp", help="Autopilot's tools for your own Claude Code or Codex (an MCP server on stdio): they "
-                               "work on the game open in the editor, on your own plan")
+    mcp_parser = sub.add_parser("mcp", help="Autopilot's tools for your own Claude Code or Codex (an MCP server on "
+                                            "stdio): they work on the game open in the editor, on your own plan")
+    mcp_parser.add_argument("--attach", metavar="FILE", help=argparse.SUPPRESS)
     co = sub.add_parser("connect", help="set up your own Claude Code or Codex for Autopilot: its MCP server, skill and "
                                         "frame describer (autopilot/connect.py)")
     co.add_argument("client", choices=("claude", "codex"))
@@ -1246,7 +1260,7 @@ def main(argv=None):
     if args.cmd == "mcp":  # (started by the user's Claude Code or Codex: stdout is the protocol's, the service runs)
         from . import mcp
 
-        return mcp.main()
+        return mcp.main(args.attach)
     processes.contain()
     if getattr(args, "exit_with", None):
         processes.exit_with(args.exit_with, finish=finish_after_run)

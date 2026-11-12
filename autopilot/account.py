@@ -288,7 +288,7 @@ def state():
     provider = llm_provider(saved)
     frame = {"type": "account", "keys": {"decision": masked(setting("TYPESAFE_API_KEY")),
                                          "llm": masked(next(filter(None, map(setting, llm_keys(provider))), None))},
-             "coding_agent": coding_agent(saved), "llm_provider": provider,
+             "coding_agent": coding_agent(saved), "llm_provider": provider, "supports_cli_launch": True,
              "share_data": prefs.get("share_data") is not False}
     # A kept sign-in is told whatever the mode: the plugin's first-run setup signs in before it records the choice
     kept = aura_login.saved(server())

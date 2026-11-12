@@ -17,6 +17,8 @@ namespace Autopilot.Playtest.Editor
         /// <summary>The command line that starts the agent service, "serve ..." going after it (e.g. a repository's
         /// .venv python with -m autopilot); empty: found by itself (PATH, then where the installer puts it).</summary>
         public string ServiceCommand = "";
+        /// <summary>Which signed-in CLI should run new tests here. Empty uses the configured Autopilot agent.</summary>
+        public string CliClient = "";
         /// <summary>The first-run setup's Explore minutes (Default Explore Minutes, 1 to 600).</summary>
         public int ExploreMinutes = 10;
         /// <summary>How the game is meant to work: the design, the rules players are told. Sent with every run from the
@@ -71,6 +73,8 @@ namespace Autopilot.Playtest.Editor
                     instance.Token = Json.Str(o, "token", "");
                     instance.UseWithAura = Json.Bool(o, "use_with_aura", false);
                     instance.ServiceCommand = Json.Str(o, "service_command", "");
+                    var cli = Json.Str(o, "cli_client");
+                    if (cli == CodingAgents.Claude || cli == CodingAgents.Codex) instance.CliClient = cli;
                     instance.ExploreMinutes = ClampTimeLimit((int)Json.Num(o, "explore_minutes", 10));
                     instance.DesignBrief = Json.Str(o, "design_brief", "");
                     instance.ShowPolicyLog = Json.Bool(o, "show_policy_log", true);
@@ -96,6 +100,7 @@ namespace Autopilot.Playtest.Editor
                     ["token"] = Token,
                     ["use_with_aura"] = UseWithAura,
                     ["service_command"] = ServiceCommand,
+                    ["cli_client"] = CliClient,
                     ["explore_minutes"] = ExploreMinutes,
                     ["design_brief"] = DesignBrief,
                     ["show_policy_log"] = ShowPolicyLog,

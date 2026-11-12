@@ -309,12 +309,17 @@ namespace Autopilot.Playtest.Editor
             card.Add(head);
             // (stacked, each full width, in every layout: the LLM key shares its row with the provider's dropdown)
             var fields = Box("col keys");
+            fields.Add(RunClientField(() => Refresh(true)));
             fields.Add(KeyField("Decision provider API key", "Optional", typedDecision, v => typedDecision = v));
-            var provider = ProviderPick();
-            fields.Add(CodingAgentField(provider));
-            var llm = LlmKeyField(provider);
-            llm.style.marginBottom = 0;
-            fields.Add(llm);
+            if (string.IsNullOrEmpty(PlaytestSettings.Get().CliClient))
+            {
+                var provider = ProviderPick();
+                fields.Add(CodingAgentField(provider));
+                var llm = LlmKeyField(provider);
+                llm.style.marginBottom = 0;
+                fields.Add(llm);
+            }
+            else fields.Add(Para("Use your TypeSafe key for Jev and sign in through the selected CLI."));
             card.Add(fields);
             var buttons = Box("buttons");
             buttons.Add(Btn("Use my keys", UseMyKeys, Wide ? "" : "full"));
@@ -453,7 +458,10 @@ namespace Autopilot.Playtest.Editor
         {
             var agent = SetupCodingAgent();
             var provider = SetupLlmProvider();
-            if (!AutopilotEnv.Write(AutopilotEnv.ByokKeys(typedDecision, agent, provider, typedLlm)))
+            var keys = string.IsNullOrEmpty(PlaytestSettings.Get().CliClient)
+                ? AutopilotEnv.ByokKeys(typedDecision, agent, provider, typedLlm)
+                : new Dictionary<string, string> { [AutopilotEnv.TypeSafeKey] = typedDecision };
+            if (!AutopilotEnv.Write(keys))
             {
                 setupProblem = $"Couldn’t save the keys to {AutopilotEnv.DefaultPath} (error {AutopilotEnv.LastError})";
                 Refresh(true);
@@ -1069,6 +1077,7 @@ namespace Autopilot.Playtest.Editor
             card.Add(CardHead("Explore your game", Tag("Recommended", "lime")));
             card.Add(Para(FirstRunLine, "setup-text"));
             var s = PlaytestSettings.Get();
+            card.Add(RunClientField(() => Refresh(true)));
             var minutesRow = Row("minutes-row");
             minutesRow.Add(Lbl("Minutes", "minutes-key"));
             var minutes = NumField(Math.Max(1, s.ExploreMinutes), "time-limit-field");
@@ -1085,9 +1094,9 @@ namespace Autopilot.Playtest.Editor
             var buttons = Box("buttons ruled");
             var explore = Btn("Explore and finish", ExploreAndFinish, "primary wide-btn");
             // (not now: greyed, its tooltip saying why; pressed, the status line too)
-            var ready = client.Connected && !client.RunActive;
-            explore.EnableInClassList("off", !ready);
-            if (!ready) explore.tooltip = client.RunActive ? AutopilotStatus.RunBusy : AutopilotStatus.RunOffline;
+            var problem = AutopilotSession.StartProblem(client, s.CliClient);
+            explore.EnableInClassList("off", problem != null);
+            if (problem != null) explore.tooltip = problem;
             buttons.Add(explore);
             buttons.Add(Btn("Skip and finish", SkipFirstRun, "quiet"));
             card.Add(buttons);
@@ -1098,10 +1107,11 @@ namespace Autopilot.Playtest.Editor
         /// agent service doesn't read it from words), shown live, and the setup closed.</summary>
         internal void ExploreAndFinish()
         {
-            var frame = ExploreFrame(PlaytestSettings.Get().ExploreMinutes, PlaytestSettings.Get().DesignBrief);
+            var s = PlaytestSettings.Get();
+            var frame = ExploreFrame(s.ExploreMinutes, s.DesignBrief, s.CliClient);
             if (!AutopilotSession.Start(frame, "Explore"))
             {
-                setupProblem = "The Explore run couldn’t start: Autopilot isn’t connected to the agent service, or a run is going.";
+                setupProblem = AutopilotSession.StartProblem(EditorHost.Client, s.CliClient);
                 Refresh(true);
                 return;
             }

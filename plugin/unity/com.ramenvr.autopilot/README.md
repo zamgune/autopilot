@@ -94,6 +94,12 @@ The agent enters play mode by itself when it needs the game. While a run plays y
 - **Stop** it early (it reads *Stopping…* and the steer box locks until the run ends; a project index being written
   stops too); the agent still reports what it found.
 
+To start a test with your signed-in terminal account, choose **Claude Code CLI** or **Codex CLI** in **New run > Run
+with** and press **Run**. The agent service starts the chosen CLI with a connection to this test. Sign in once using
+`claude auth login` or `codex login` on the service's machine. For Jev, choose Aura or enter your TypeSafe key during
+setup. **Configured agent** uses your usual Autopilot agent. Unity remembers the choice per project, and **Run again**
+uses the selection saved with the original test.
+
 A run started from your own Claude Code or Codex (`autopilot connect claude|codex`, see [Usage](#usage)) shows here as
 one started from the box: the agent service says so with a `run_started` message, and the
 window shows it live, with **Stop** and **Steer** as above, its result going into the History. Under its request a

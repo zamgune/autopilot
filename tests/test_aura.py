@@ -424,6 +424,31 @@ def test_runs_through_aura_always_use_claude_code(through_aura, monkeypatch, tmp
     assert picked == ["claude", None]  # (without Aura: AUTOPILOT_AGENT's choice)
 
 
+def test_editor_cli_keeps_aura_for_jev_and_uses_the_selected_login(through_aura, monkeypatch, tmp_path):
+    from autopilot.agents import external, logged_cli
+
+    http = FakeAura()
+    monkeypatch.setattr(cli.aura.requests, "Session", lambda: http)
+    monkeypatch.setattr(cli.codexmod, "MEMORY", str(tmp_path))
+    monkeypatch.setattr(cli, "prepare", lambda *args: ("Farm", object()))
+
+    def jev():
+        assert os.environ["TYPESAFE_BASE_URL"] == http.start.json()["relay"]["typesafe"]
+        assert os.environ["TYPESAFE_API_KEY"] == http.start.json()["token"]
+        return None
+
+    def implement(*args, desk, **kwargs):
+        assert desk.cli_client == "codex"
+        assert not {"TYPESAFE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"}.intersection(logged_cli.cli_env())
+        return {"outcome": "achieved", "summary": "The gate opened.", "evidence": []}
+
+    monkeypatch.setattr(cli.runtime, "jev_client", jev)
+    monkeypatch.setattr(external, "implement", implement)
+    monkeypatch.setattr(cli.agents, "select", lambda *args: pytest.fail("used Aura's coding agent"))
+    assert cli.run_prompt(Plugin(), "Open the gate", kind="goal", cli_client="codex") == 0
+    assert http.calls[-1][0].endswith("/runs/finish")
+
+
 def test_the_plugin_is_told_what_aura_billed_a_run_before_its_result(through_aura, monkeypatch, tmp_path,
                                                                      no_aura_bill):
     monkeypatch.setattr(cli.codexmod, "MEMORY", str(tmp_path))

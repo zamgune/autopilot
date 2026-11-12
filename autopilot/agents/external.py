@@ -1,5 +1,6 @@
 """The agent is the user's own Claude Code or Codex, on the user's own plan: Autopilot is an MCP server it uses
-(`autopilot mcp`, autopilot/mcp.py), not an agent Autopilot runs. Everything else is a run as the editor's Play makes
+(`autopilot mcp`, autopilot/mcp.py). It can start a run from its terminal, or the editor can launch the signed-in CLI
+with its MCP connection scoped to one run. Everything else is a run as the editor's Play makes
 one (cli.run_prompt): the game started and its codex read, Jev deciding, the recording, steering, the result in the
 Autopilot tab, the memory and (shared) the run's data.
 
@@ -24,10 +25,13 @@ too. describe_frames (Autopilot's own vision model) stays a fallback, where the 
 """
 
 import base64
+import contextlib
 import http.server
 import json
 import os
 import secrets
+import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -86,11 +90,11 @@ else (never the request, the claim, the harness or what you expect):
     {sweep}
 
 In Claude Code use the `frame-describer` subagent when there is one (Autopilot's Claude Code plugin adds it), else a
-general-purpose one. In Codex spawn the `frame_describer` agent when there is one, else a new agent, with nothing of
-this conversation forked into it. Hold its description against what true and false would look like, written down
-before you asked; a request about how something looks is CONFIRMED or DENIED only on such a description (report it
-with visual: true). describe_frames, Autopilot's own describer, is a fallback for when no subagent of yours can take
-pictures: it works only where the user has a key (or Aura) for one.
+general-purpose one. In Codex spawn the `frame_describer` agent when there is one, else a new agent. Start it with
+an empty conversation (`fork_turns="none"` where available). Hold its description against what true and false would
+look like, written down before you asked. A request about how something looks is CONFIRMED or DENIED only on such a
+description (report it with visual: true). If no subagent can take pictures, use describe_frames where the user
+has a key (or Aura) for Autopilot's own describer.
 """
 
 START = """Autopilot run {marker} started on {project}: the game is open in the user's editor and paused between your
@@ -130,8 +134,9 @@ def text_result(text, error=False):
 class Desk:
     """One run's tool calls (autopilot/mcp.py's client: its name, e.g. claude-code or codex)."""
 
-    def __init__(self, client=None):
-        self.client = client
+    def __init__(self, client=None, *, cli_client=None):
+        self.cli_client = cli_client  # set only when the editor owns the CLI process
+        self.client = ("claude-code" if cli_client == "claude" else cli_client) or client
         self.marker = None  # "<run id>-<nonce>": named in what the user's agent is told, so its transcript is found
         self.session = None
         self.files = None
@@ -301,6 +306,26 @@ class Control:
         self.httpd.server_close()
 
 
+@contextlib.contextmanager
+def launch_cli(desk):
+    """Give only this CLI and its frame describer an MCP server attached to the editor's already-open run."""
+    from . import logged_cli
+
+    with tempfile.TemporaryDirectory(prefix="autopilot-cli-") as folder, contextlib.closing(Control()) as control:
+        control.desk = desk
+        connection = os.path.join(folder, "connection.json")
+        with open(connection, "w", encoding="utf-8") as f:
+            json.dump({"control": control.url, "run": desk.marker}, f)
+        # The local capability stays in the file. PYTHONPATH also supports a service started from a source checkout.
+        server = {"command": sys.executable, "args": ["-P", "-m", "autopilot", "mcp", "--attach", connection],
+                  "env": {"PYTHONPATH": os.path.dirname(PACKAGE)}}
+        cwd = os.path.join(folder, "agent")
+        os.mkdir(cwd)
+        desk.session.say(f"Starting {logged_cli.NAMES[desk.cli_client]} CLI")
+        with logged_cli.launch(desk.cli_client, desk.opening, server, cwd) as child:
+            yield child
+
+
 def instructions_text(engine, run_rel):
     from .. import vision
 
@@ -339,25 +364,29 @@ def implement(game, project, prompt, run_id=None, say=None, client=None, model=N
         desk.open(session, files, START.format(marker=desk.marker, project=project, message=message,
                                                instructions=f"{session.run_rel}/{INSTRUCTIONS}",
                                                request=f"{session.run_rel}/{REQUEST}"))
-        while True:
-            if session.report is not None:
-                break
-            if session.stop():
-                stopped = "stopped"
-                break
-            if time.time() - t0 > session.budget:
-                stopped = "timed out"
-                break
-            if not desk.busy and time.time() - desk.last_call > IDLE_SECONDS:
-                stopped = f"the agent called no tool for {IDLE_SECONDS / 60:.0f} minutes"
-                break
-            time.sleep(0.25)
+        runner = launch_cli(desk) if desk.cli_client and not session.stop() else contextlib.nullcontext()
+        with runner as child:
+            while session.report is None:
+                if session.stop():
+                    stopped = "stopped"
+                    break
+                if time.time() - t0 > session.budget:
+                    stopped = "timed out"
+                    break
+                if child is not None:
+                    stopped = child.failure()
+                    if stopped:
+                        break
+                if not desk.busy and time.time() - desk.last_call > IDLE_SECONDS:
+                    stopped = f"the agent called no tool for {IDLE_SECONDS / 60:.0f} minutes"
+                    break
+                time.sleep(0.25)
     except Exception as e:
         stopped = f"{type(e).__name__}: {e}"
         session.note(traceback.format_exc())
     finally:
         desk.end(stopped or "reported")
-        if session.sandbox and stopped == "stopped":
+        if session.sandbox and (stopped == "stopped" or (desk.cli_client and stopped)):
             session.sandbox.stop()
         desk.wait_idle(END_GRACE)  # (a call going ends first: its episode sees the stop)
         done.set()

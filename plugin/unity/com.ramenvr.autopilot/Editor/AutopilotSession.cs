@@ -637,10 +637,23 @@ namespace Autopilot.Playtest.Editor
         public static bool Start(Dictionary<string, object> frame, string prompt)
         {
             var client = EditorHost.Client;
-            if (client == null || !client.Connected || client.RunActive) return false;
+            var problem = StartProblem(client, Json.Str(frame, "cli_client"));
+            if (problem != null)
+            {
+                AutopilotStatus.Say(problem);
+                return false;
+            }
             Begin(KindOf(frame), prompt, frame);
             client.StartRun(frame);
             return true;
+        }
+
+        internal static string StartProblem(PlaytestClient client, string cliClient)
+        {
+            if (client == null || !client.Connected) return AutopilotStatus.RunOffline;
+            if (client.RunActive) return AutopilotStatus.RunBusy;
+            if (string.IsNullOrEmpty(cliClient) || client.SupportsCliLaunch == true) return null;
+            return client.SupportsCliLaunch == false ? AutopilotStatus.CliUpdate : AutopilotStatus.CliChecking;
         }
 
         /// <summary>Stop the run going: asked of the agent service, and the run shown as stopping (Stop reads

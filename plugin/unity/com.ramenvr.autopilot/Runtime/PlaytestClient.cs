@@ -132,6 +132,8 @@ namespace Autopilot.Playtest
         // The welcome's features had "account": the brain says how it runs and signs in to Aura when asked
         // (docs/protocol.md, Account)
         public bool BrainHasAccount { get; private set; }
+        /// <summary>Whether this connection's service can launch a signed-in CLI. Null until it has answered.</summary>
+        public bool? SupportsCliLaunch { get; private set; }
         /// <summary>The brain's last `account` frame (null until one came on this client).</summary>
         public AccountInfo Account { get; private set; }
         /// <summary>The Aura sign-in this client asked the brain for.</summary>
@@ -574,6 +576,7 @@ namespace Autopilot.Playtest
         {
             if (Connected == connected) return;
             Connected = connected;
+            SupportsCliLaunch = null;
             if (connected) ++connectionSerial;
             else ForgetMemoryState();
             OnConnectionChanged?.Invoke(connected);
@@ -1072,6 +1075,7 @@ namespace Autopilot.Playtest
                             BrainSteers |= feature is string name && name == "steer";
                             BrainHasAccount |= feature is string acc && acc == "account";
                         }
+                    SupportsCliLaunch = BrainHasAccount ? (bool?)null : false;
                     var session = Json.Str(m, "session");
                     // (a resume the brain didn't take is a new connection: no recording goes on)
                     if (!string.IsNullOrEmpty(askedResume) && session != askedResume) Media.Stop();
@@ -1159,6 +1163,7 @@ namespace Autopilot.Playtest
                 case "account":
                     // How the brain runs: Aura (signed in or not), the user's keys, or nothing set up
                     Account = AccountInfo.From(m);
+                    SupportsCliLaunch = m.TryGetValue("supports_cli_launch", out var launch) && launch is true;
                     ResumeSignIn();
                     AccountChanged();
                     break;

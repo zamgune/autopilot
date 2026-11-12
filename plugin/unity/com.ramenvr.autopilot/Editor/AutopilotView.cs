@@ -1049,11 +1049,36 @@ namespace Autopilot.Playtest.Editor
             return head;
         }
 
+        static readonly string[] RunClientIds = { "", CodingAgents.Claude, CodingAgents.Codex };
+        static readonly List<string> RunClientNames = new List<string> { "Configured agent", "Claude Code CLI", "Codex CLI" };
+
+        static VisualElement RunClientField(Action changed = null)
+        {
+            var settings = PlaytestSettings.Get();
+            var box = Box("keyfield");
+            box.Add(Lbl("Run with", "field-label"));
+            var pick = new DropdownField(RunClientNames, Math.Max(0, Array.IndexOf(RunClientIds, settings.CliClient)))
+            {
+                tooltip = "CLI options use your local login. Jev chooses game actions."
+            };
+            pick.AddToClassList("key-pick");
+            pick.AddToClassList("run-client");
+            pick.RegisterValueChangedCallback(e =>
+            {
+                settings.CliClient = RunClientIds[pick.index];
+                settings.Save();
+                changed?.Invoke();
+            });
+            box.Add(pick);
+            return box;
+        }
+
         void BuildComposer(string clientUrl)
         {
             var s = PlaytestSettings.Get();
             PageHead("New run");
             var page = PageBox("composer-page stack-10");
+            page.Add(RunClientField());
 
             // One box (a well): the prompt; under it the Time limit and Run at the row's right (the kind of run is the
             // agent service's to read from the words: its run_kind says it once the run starts)
@@ -1094,7 +1119,7 @@ namespace Autopilot.Playtest.Editor
             page.Add(credits);
             page.Add(composer);
 
-            var hint = L(BusyLine, "busy-line");
+            var hint = Para(BusyLine, "busy-line");
             page.Add(hint);
             composerTick = () =>
             {
@@ -1109,10 +1134,11 @@ namespace Autopilot.Playtest.Editor
                     credits.style.display = notice != null ? DisplayStyle.Flex : DisplayStyle.None;
                 }
                 var busy = c != null && c.RunActive;
-                // (an empty box: Run disabled; not connected or a run going: greyed but pressable, the status line saying why)
-                runButton.SetEnabled(!string.IsNullOrWhiteSpace(s.Prompt));
+                var cliProblem = !string.IsNullOrEmpty(s.CliClient) ? AutopilotSession.StartProblem(c, s.CliClient) : null;
+                runButton.SetEnabled(!string.IsNullOrWhiteSpace(s.Prompt) && cliProblem == null);
                 runButton.EnableInClassList("off", c == null || !c.Connected || busy);
-                var show = busy ? DisplayStyle.Flex : DisplayStyle.None;
+                hint.text = busy ? BusyLine : cliProblem ?? "";
+                var show = hint.text.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
                 if (hint.style.display != show) hint.style.display = show;
             };
             composerTick();
@@ -1180,7 +1206,6 @@ namespace Autopilot.Playtest.Editor
 
         public void StartFromComposer()
         {
-            if (!ReadyToRun()) return;
             var frame = ComposerFrame(PlaytestSettings.Get(), out var shown);
             if (AutopilotSession.Start(frame, shown))
             {
@@ -1203,7 +1228,9 @@ namespace Autopilot.Playtest.Editor
         /// the Design Brief setting when it says anything.</summary>
         public static Dictionary<string, object> ComposerFrame(PlaytestSettings s, out string shown)
         {
-            return ComposerFrame(s.Prompt, s.TimeLimitMinutes, s.DesignBrief, out shown);
+            var frame = ComposerFrame(s.Prompt, s.TimeLimitMinutes, s.DesignBrief, out shown);
+            if (!string.IsNullOrEmpty(s.CliClient)) frame["cli_client"] = s.CliClient;
+            return frame;
         }
 
         /// <summary>The run the text asks for, its kind the agent service's to read (kind "auto": its run_kind says
@@ -1229,11 +1256,12 @@ namespace Autopilot.Playtest.Editor
 
         /// <summary>An Explore run of <paramref name="minutes"/> minutes of play (its kind said in the frame: the agent
         /// service doesn't read it from words), with the Design Brief as its brief when it says anything, as Unreal's.</summary>
-        public static Dictionary<string, object> ExploreFrame(int minutes, string designBrief)
+        public static Dictionary<string, object> ExploreFrame(int minutes, string designBrief, string cliClient = "")
         {
             var frame = new Dictionary<string, object> { ["kind"] = "explore", ["minutes"] = Math.Max(1, minutes) };
             var brief = (designBrief ?? "").Trim();
             if (brief.Length > 0) frame["brief"] = brief;
+            if (!string.IsNullOrEmpty(cliClient)) frame["cli_client"] = cliClient;
             return frame;
         }
 
@@ -1272,6 +1300,8 @@ namespace Autopilot.Playtest.Editor
         public const string AuraDidntStart = "Couldn’t start Aura";
         public const string RunOffline = "Not connected: connect first";
         public const string RunBusy = "A run is going: wait for its result, or stop it";
+        public const string CliUpdate = "Install the agent service supplied with this Unity package to run a signed-in CLI.";
+        public const string CliChecking = "Waiting for the agent service to confirm CLI support.";
         public const string ResetOffline = "Not connected: connect first to reset the memory";
         public const string ResetBusy = "A run is going: reset the memory once it is done";
         public const string NoScene = "Open the scene to show this finding in it";
