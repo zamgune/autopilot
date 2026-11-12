@@ -35,7 +35,7 @@ Autopilot has builds for Unreal Engine 5.4, 5.5, 5.6, 5.7, and 5.8. If you haven
 
 ### Step 2B: Adding to your project (Unity)
 
-Download the fork's Unity package for 2022.3 LTS or Unity 6. It includes the agent service that runs tests with your signed-in Claude Code or Codex CLI. [Download com.ramenvr.autopilot-1.0.2-cli.tgz](https://github.com/zamgune/autopilot/releases/download/v1.0.2-cli/com.ramenvr.autopilot-1.0.2-cli.tgz)
+Download the fork's Unity package for 2022.3 LTS or Unity 6. It includes the agent service that runs tests with your signed-in Claude Code or Codex CLI. [Download com.ramenvr.autopilot-1.0.3-cli.tgz](https://github.com/zamgune/autopilot/releases/download/v1.0.3-cli/com.ramenvr.autopilot-1.0.3-cli.tgz)
 
 1. Keep the `.tgz` file in a stable location and open your project.
 2. Open **Window > Package Manager**. Some Unity 6 releases place it under **Window > Package Management > Package Manager**.

@@ -1079,6 +1079,7 @@ namespace Autopilot.Playtest
             var seen = new HashSet<InputAction>();
             foreach (var a in InputSystem.ListEnabledActions())
                 if (seen.Add(a)) list.Add(a);
+#if AUTOPILOT_PROJECT_WIDE_ACTIONS
             try
             {
                 var project = InputSystem.actions;
@@ -1090,6 +1091,7 @@ namespace Autopilot.Playtest
             {
                 // (no project-wide actions)
             }
+#endif
             foreach (var p in PlayerInput.all)
                 if (p != null && p.actions != null)
                     foreach (var a in p.actions)

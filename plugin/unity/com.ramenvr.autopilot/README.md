@@ -35,7 +35,7 @@ call the game's code. The brain does the thinking; this package only looks and a
 
 ### Install the bundled service and Unity package
 
-The Unity package includes the matching Python service and its installer. [Download com.ramenvr.autopilot-1.0.2-cli.tgz](https://github.com/zamgune/autopilot/releases/download/v1.0.2-cli/com.ramenvr.autopilot-1.0.2-cli.tgz)
+The Unity package includes the matching Python service and its installer. [Download com.ramenvr.autopilot-1.0.3-cli.tgz](https://github.com/zamgune/autopilot/releases/download/v1.0.3-cli/com.ramenvr.autopilot-1.0.3-cli.tgz)
 
 Keep the `.tgz` in a stable location because your project references this file. Open **Window > Package Manager** (under **Window > Package Management** in
 some Unity 6 releases). Choose **+ > Add package from tarball...** in 2022.3, or **+ > Install package from tarball...**
